@@ -1,0 +1,8 @@
+venv/
+venv/
+.vscode/
+__pycache__/
+*.pyc
+*.log
+# node_modules/  # 如果您的项目包含前端代码
+# .env          # 如果您有存储敏感信息的环境变量文件
