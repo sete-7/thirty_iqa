@@ -44,21 +44,21 @@ def build_user_prompt(item: Dict) -> str:
         "",
         "=== 专家打分参考 ===",
         f"  UniPercept (感知质量)  : {item.get('unipercept_score', 'N/A')}",
-        f"  Grounding-IQA (区域质量): {item.get('grounding_iqa_score', 'N/A')}",
+        f"  Q-Insight+/Q-Probe (局部缺陷评分): {item.get('q_insight_score', 'N/A')}",
         f"  HPSv3 (语义匹配)       : {item.get('hpsv3_score', 'N/A')}",
         f"  SpatialScore (空间布局) : {item.get('spatial_score', 'N/A')}",
     ]
 
-    # Include Grounding-IQA detected regions if available
-    regions = item.get("grounding_iqa_regions", [])
+    # Include Q-Insight+ detected regions if available
+    regions = item.get("q_insight_regions", [])
     if regions:
         lines.append("")
-        lines.append("=== Grounding-IQA 检测到的缺陷区域 ===")
+        lines.append("=== Q-Insight+ 扫视发现的局部缺陷与得分 ===")
         for r in regions:
             lines.append(
                 f"  {r.get('label', 'defect')} "
                 f"bbox={r.get('bbox', [])} "
-                f"conf={r.get('confidence', 0):.2f}"
+                f"local_score={r.get('local_score', 0):.2f}"
             )
 
     lines.append("")
@@ -100,7 +100,7 @@ def compute_variance(item: Dict) -> float:
     because normalization requires global context; for per-item filtering raw variance suffices).
     """
     scores = []
-    for key in ("unipercept_score", "grounding_iqa_score", "hpsv3_score", "spatial_score"):
+    for key in ("unipercept_score", "q_insight_score", "hpsv3_score", "spatial_score"):
         val = item.get(key)
         if val is not None:
             scores.append(float(val))

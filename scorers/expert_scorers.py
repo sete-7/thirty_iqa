@@ -44,43 +44,8 @@ def score_with_uniperceptiqa(image_path: str) -> float:
         torch.cuda.empty_cache()
     return float(score)
 
-
-def score_with_grounding_iqa(image_path: str, prompt: str = "") -> Dict:
-    """
-    Grounding-IQA: Region-aware quality assessment.
-    Returns both an overall score AND per-region defect bounding boxes.
-    """
-    print("[Grounding-IQA] Loading model...")
-    result = {"score": 0.0, "regions": []}
-    try:
-        # ---- Replace with real Grounding-IQA inference ----
-        # from grounding_iqa import GroundingIQAModel
-        # model = GroundingIQAModel.from_pretrained("grounding-iqa-v1")
-        # model = model.to("cuda" if torch.cuda.is_available() else "cpu")
-        # model.eval()
-        # with torch.no_grad():
-        #     output = model.predict(image_path, prompt)
-        #     result["score"] = output["quality_score"]
-        #     result["regions"] = output["defect_regions"]
-        # del model
-
-        # Placeholder:
-        result = {
-            "score": 65.1,
-            "regions": [
-                {"bbox": [120, 80, 300, 250], "label": "blur", "confidence": 0.82},
-                {"bbox": [400, 300, 510, 420], "label": "artifact", "confidence": 0.71},
-            ],
-        }
-
-    except Exception as e:
-        print(f"[Grounding-IQA] Error: {e}. Returning dummy.")
-        result = {"score": 50.0, "regions": []}
-
-    gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-    return result
+# Import Q-Insight+ / Q-Probe
+from scorers.qinsight_qprobe import score_with_qinsight_qprobe
 
 
 def score_with_hpsv3(image_path: str, prompt: str) -> float:
@@ -129,14 +94,10 @@ def score_with_spatialscore(image_path: str, prompt: str) -> float:
     return float(score)
 
 
-# ========================================================================
-# Unified scoring entry
-# ========================================================================
-
 def get_all_expert_scores(image_path: str, prompt: str) -> Dict:
     """
     Runs all expert scorers sequentially, clearing VRAM after each.
-    Returns a dict of all scores plus Grounding-IQA region annotations.
+    Returns a dict of all scores plus Q-Insight+ / Q-Probe region annotations.
     """
     print(f"\n{'='*60}")
     print(f"Evaluating: {image_path}")
@@ -145,8 +106,8 @@ def get_all_expert_scores(image_path: str, prompt: str) -> Dict:
     # 1. UniPercept (general perceptual quality)
     unipercept_score = score_with_uniperceptiqa(image_path)
 
-    # 2. Grounding-IQA (region-aware quality + defect boxes)
-    giqa_result = score_with_grounding_iqa(image_path, prompt)
+    # 2. Q-Insight+ / Q-Probe (active viewing quality + defect boxes)
+    q_result = score_with_qinsight_qprobe(image_path, prompt)
 
     # 3. HPSv3 (semantic / text-image alignment)
     hpsv3_score = score_with_hpsv3(image_path, prompt)
@@ -156,15 +117,15 @@ def get_all_expert_scores(image_path: str, prompt: str) -> Dict:
 
     scores = {
         "unipercept_score": unipercept_score,
-        "grounding_iqa_score": giqa_result["score"],
-        "grounding_iqa_regions": giqa_result["regions"],
+        "q_insight_score": q_result["score"],
+        "q_insight_regions": q_result["regions"],
         "hpsv3_score": hpsv3_score,
         "spatial_score": spatial_score,
     }
 
     print(
         f"Results -> UniPercept: {unipercept_score:.2f}, "
-        f"G-IQA: {giqa_result['score']:.2f}, "
+        f"Q-Insight+/Q-Probe: {q_result['score']:.2f}, "
         f"HPSv3: {hpsv3_score:.3f}, "
         f"SpatialScore: {spatial_score:.2f}"
     )

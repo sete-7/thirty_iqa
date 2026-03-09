@@ -33,7 +33,7 @@ def plot_histograms(data: List[Dict], output_dir: str = "plots"):
     score_keys = [
         ("human_mos", "Human MOS"),
         ("unipercept_score", "UniPercept"),
-        ("grounding_iqa_score", "Grounding-IQA"),
+        ("q_insight_score", "Q-Insight+"),
         ("hpsv3_score", "HPSv3"),
         ("spatial_score", "SpatialScore"),
     ]
@@ -76,7 +76,7 @@ def plot_boxplots(data: List[Dict], output_dir: str = "plots"):
     score_keys = [
         ("human_mos", "Human MOS"),
         ("unipercept_score", "UniPercept"),
-        ("grounding_iqa_score", "G-IQA"),
+        ("q_insight_score", "Q-Insight+"),
         ("hpsv3_score", "HPSv3"),
         ("spatial_score", "Spatial"),
     ]

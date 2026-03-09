@@ -36,7 +36,7 @@ def _build_lookup(data: List[Dict], key: str = "image_id") -> Dict[str, Dict]:
 def compute_variance(item: Dict) -> float:
     """Compute score variance across expert dimensions."""
     scores = []
-    for key in ("unipercept_score", "grounding_iqa_score", "hpsv3_score", "spatial_score"):
+    for key in ("unipercept_score", "q_insight_score", "hpsv3_score", "spatial_score"):
         val = item.get(key)
         if val is not None:
             scores.append(float(val))
@@ -120,8 +120,8 @@ def package_final_dataset(
                 "clip_text_feature": feat_item.get("clip_text_feature", []),
                 # Expert scores
                 "unipercept_score": score_item.get("unipercept_score", None),
-                "grounding_iqa_score": score_item.get("grounding_iqa_score", None),
-                "grounding_iqa_regions": score_item.get("grounding_iqa_regions", []),
+                "q_insight_score": score_item.get("q_insight_score", None),
+                "q_insight_regions": score_item.get("q_insight_regions", []),
                 "hpsv3_score": score_item.get("hpsv3_score", None),
                 "spatial_score": score_item.get("spatial_score", None),
                 # Human MOS
