@@ -42,53 +42,83 @@ def score_with_qinsight_qprobe(image_path: str, prompt: str = "") -> Dict:
 
         img = Image.open(image_path).convert("RGB")
         w, h = img.size
-        grid_size = 3
+        
+        # Context-Aware Cropping: Generate a pseudo-Saliency Map 
+        # to find top regions instead of a fixed 3x3 grid.
+        # ？？？？？？？
+        # In a real scenario, a dedicated lightweight saliency network (e.g. U-2-Net, BASNet)
+        # or a fast variance/edge filter is used to find salient object/noise regions.
+        # Here we simulate this by detecting high-frequency variance boxes.
+        
+        import torchvision.transforms.functional as TF
+        from torchvision.transforms import Grayscale
+        
+        img_tensor = TF.to_tensor(img).unsqueeze(0) # (1, 3, H, W)
+        gray_tensor = Grayscale()(img_tensor) # (1, 1, H, W)
+        
+        # Simple pseudo-saliency: local variance (using average pooling)
+        kernel_size = min(w, h) // 10
+        if kernel_size % 2 == 0: kernel_size += 1
+        
+        local_mean = torch.nn.functional.avg_pool2d(gray_tensor, kernel_size, stride=kernel_size//2)
+        local_mean_sq = torch.nn.functional.avg_pool2d(gray_tensor**2, kernel_size, stride=kernel_size//2)
+        local_variance = torch.clamp(local_mean_sq - local_mean**2, min=0)
+        
+        # Find top N salient (high variance/texture/noise) regions
+        N_regions = 5
+        b, c, ph, pw = local_variance.shape
+        flat_var = local_variance.view(-1)
+        topk_vals, topk_idx = torch.topk(flat_var, min(N_regions, flat_var.size(0)))
+        
+        stride = kernel_size // 2
         regions = []
+        
+        # Crop context-aware regions based on saliency peaks
+        for idx in topk_idx:
+            row = (idx.item() // pw) * stride
+            col = (idx.item() % pw) * stride
+            
+            # Context window around the peak
+            x1 = max(0, col - kernel_size//2)
+            y1 = max(0, row - kernel_size//2)
+            x2 = min(w, col + kernel_size + kernel_size//2)
+            y2 = min(h, row + kernel_size + kernel_size//2)
+            
+            crop = img.crop((x1, y1, x2, y2))
+            if crop.width < 32 or crop.height < 32:
+                continue
+                
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+                tmp_path = tmp.name
 
-        for row in range(grid_size):
-            for col in range(grid_size):
-                x1 = col / grid_size
-                y1 = row / grid_size
-                x2 = (col + 1) / grid_size
-                y2 = (row + 1) / grid_size
+            try:
+                crop.save(tmp_path)
+                with torch.no_grad():
+                    local_brisque = float(scan_metric(tmp_path).item())
+                if math.isnan(local_brisque):
+                    local_brisque = 0.0
+            finally:
+                os.remove(tmp_path)
 
-                crop = img.crop(
-                    (int(x1 * w), int(y1 * h), int(x2 * w), int(y2 * h))
+            local_quality = max(0.0, 100.0 - local_brisque)
+
+            if local_brisque > defect_threshold:
+                regions.append(
+                    {
+                        "action": (
+                            f"name: Context Aware Crop, bbox: "
+                            f"[{x1/w:.2f}, {y1/h:.2f}, {x2/w:.2f}, {y2/h:.2f}]"
+                        ),
+                        "bbox": [
+                            round(x1/w, 2),
+                            round(y1/h, 2),
+                            round(x2/w, 2),
+                            round(y2/h, 2),
+                        ],
+                        "label": "quality_defect_salient",
+                        "local_score": round(local_quality, 2),
+                    }
                 )
-                if crop.width < 32 or crop.height < 32:
-                    continue
-
-                with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
-                    tmp_path = tmp.name
-
-                try:
-                    crop.save(tmp_path)
-                    with torch.no_grad():
-                        local_brisque = float(scan_metric(tmp_path).item())
-                    if math.isnan(local_brisque):
-                        local_brisque = 0.0
-                finally:
-                    os.remove(tmp_path)
-
-                local_quality = max(0.0, 100.0 - local_brisque)
-
-                if local_brisque > defect_threshold:
-                    regions.append(
-                        {
-                            "action": (
-                                f"name: Image crop, bbox: "
-                                f"[{x1:.2f}, {y1:.2f}, {x2:.2f}, {y2:.2f}]"
-                            ),
-                            "bbox": [
-                                round(x1, 2),
-                                round(y1, 2),
-                                round(x2, 2),
-                                round(y2, 2),
-                            ],
-                            "label": "quality_defect",
-                            "local_score": round(local_quality, 2),
-                        }
-                    )
 
         del scan_metric
         img.close()

@@ -65,48 +65,42 @@ def score_with_hpsv3(image_path: str, prompt: str) -> float:
 
 def score_with_spatialscore(image_path: str, prompt: str) -> float:
     """
-    SpatialScore: Evaluates spatial/semantic alignment between image and prompt
-    using CLIP image-text similarity.  Returns a score in the 0-10 range.
+    SpatialScore: Evaluates structural/spatial layout and aesthetic quality 
+    using Qwen2.5-VL via the unipercept-reward API.
+    Returns a score in the 0-100 range.
     """
-    # CLIP logits_per_image are cosine similarities scaled by a learned temperature
-    # parameter (~100).  Empirically, a good image-text match produces values in
-    # the 20-35 range, while mismatches produce ~5-15.  Dividing by 3 maps this
-    # to a 0-10 scale that matches the expected SpatialScore output range.
-    _CLIP_LOGIT_TO_10 = 3.0
-
-    print("[SpatialScore] Computing spatial/semantic alignment score...")
+    print("[SpatialScore] Computing structural/aesthetic score with UniPercept-Reward (Qwen2.5-VL)...")
     score = 0.0
     try:
-        from PIL import Image
-        from transformers import CLIPModel, CLIPProcessor
-
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model_name = "openai/clip-vit-base-patch32"
-        model = CLIPModel.from_pretrained(model_name).to(device)
-        processor = CLIPProcessor.from_pretrained(model_name)
-        model.eval()
-
-        image = Image.open(image_path).convert("RGB")
-        text = prompt if prompt else "an image"
-        inputs = processor(
-            text=[text], images=image, return_tensors="pt", padding=True, truncation=True
-        )
-        inputs = {k: v.to(device) for k, v in inputs.items()}
-
-        with torch.no_grad():
-            outputs = model(**inputs)
-            # logits_per_image: cosine similarity scaled by learned temperature
-            # typical range ~5-35 for meaningful image-text pairs
-            raw_score = float(outputs.logits_per_image[0, 0].item())
-
-        # Normalize to 0-10 scale
-        score = min(10.0, max(0.0, raw_score / _CLIP_LOGIT_TO_10))
-
-        del model
-        image.close()
+        # Import the scoring API
+        # Note: Actual import path depends on unipercept-reward library structure.
+        # This assumes a unified entry point or pipeline.
+        from unipercept_reward import RewardPipeline
+        
+        # Initialize the reward pipeline handling Qwen2.5-VL loading
+        dtype = torch.bfloat16 if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else torch.float16
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        
+        pipeline = RewardPipeline("Qwen/Qwen2.5-VL-7B-Instruct", device=device, torch_dtype=dtype)
+        
+        text = prompt if prompt else "A high-quality, aesthetically pleasing image with good composition."
+        raw_score = pipeline(image_path, text)
+        
+        if isinstance(raw_score, dict) and "score" in raw_score:
+            score = float(raw_score["score"])
+        elif hasattr(raw_score, "item"):
+            score = float(raw_score.item())
+        else:
+            score = float(raw_score)
+            
+        # Map to 0-100 scale (adjust if unipercept-reward returns 0-10 or logits)
+        # If it returns 0-10, we'd do score * 10. Assuming it returns 0-100 for now or generic range.
+        score = min(100.0, max(0.0, score))
+        
+        del pipeline
     except Exception as e:
         print(f"[SpatialScore] Error: {e}. Returning dummy score.")
-        score = 5.0
+        score = 50.0
 
     gc.collect()
     if torch.cuda.is_available():

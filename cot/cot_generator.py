@@ -16,11 +16,11 @@ SYSTEM_PROMPT = """\
 
 【输出格式要求——严格遵守】
 1. 先输出你的思考过程，使用 <think> ... </think> 标签包裹。
-2. 在思考过程中，如果发现图片存在局部缺陷（如模糊、伪影、畸变、不一致等），\
+2. 在思考过程中，如果发现图片存在局部缺陷（如模糊、伪影、畸变、不一致等，导致扣分），\
    必须使用 <bbox> [x1, y1, x2, y2] </bbox> 标注缺陷区域的归一化坐标 (0~1)。\
    可以标注多个缺陷区域。
 3. 最后给出 200 字以内的分析总结和一个最终综合评价分数 (0-100)，\
-   使用 <summary> ... </summary> 和 <final_score> ... </final_score> 标签包裹。
+   使用 <summary> ... </summary> 和 <score> ... </score> 标签包裹。
 
 输出示例：
 <think>
@@ -31,7 +31,7 @@ SYSTEM_PROMPT = """\
 <summary>
 图片整体质量中等偏上，语义匹配度高，但存在局部模糊和色彩伪影，空间布局有小幅偏差。
 </summary>
-<final_score>62</final_score>
+<score>62</score>
 """
 
 
@@ -63,7 +63,7 @@ def build_user_prompt(item: Dict) -> str:
 
     lines.append("")
     lines.append(
-        "请按照系统提示词中的格式要求，输出 <think>, <bbox>, <summary>, <final_score>。"
+        "请按照系统提示词中的格式要求，输出 <think>, <bbox>, <summary>, <score>。"
     )
     return "\n".join(lines)
 
@@ -85,7 +85,7 @@ def generate_cot_for_image(client: openai.OpenAI, model_name: str, item: Dict) -
         cot_text = response.choices[0].message.content
     except Exception as e:
         print(f"[CoT] LLM API error: {e}")
-        cot_text = "<think>API 调用失败</think><summary>无法生成分析</summary><final_score>0</final_score>"
+        cot_text = "<think>API 调用失败</think><summary>无法生成分析</summary><score>0</score>"
 
     return {
         "image_id": item.get("image_id", item.get("image_path")),
